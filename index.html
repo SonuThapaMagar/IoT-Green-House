@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Green House</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+    <style>
+        @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
+        * {
+            font-family: "Poppins", sans-serif;
+        }
+
+        .active {
+            background-color: rgb(14, 172, 122);
+            color: rgb(255, 255, 255);
+        }
+
+        @media (min-width: 1024px) {
+            .lg\\:flex {
+                display: flex;
+            }
+
+            .lg\\:hidden {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-blue-100">
+    <div class="flex flex-col lg:flex-row h-screen">
+        <!-- Sidebar -->
+        <aside class="bg-green-600 text-blue-100 w-full lg:w-64 xl:w-72 flex-shrink-0">
+            <!-- Sidebar Header -->
+            <div class="px-4 py-6 flex items-center justify-between">
+                <div class="flex items-center cursor-pointer">
+                    <span class="text-lg font-semibold">Dashboard</span>
+                </div>
+                <!-- Sidebar toggle button -->
+                <button id="toggleSidebar" class="block lg:hidden focus:outline-none">
+                    <!-- Use a more intuitive icon -->
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <!-- Sidebar Items -->
+            <nav class="flex-grow hidden lg:block">
+                <ul class="space-y-2">
+                    <!-- Sidebar item with responsive text -->
+                    <li class="px-4 py-2 flex items-center active">
+                        <i class="fas fa-home mr-2"></i>
+                        <!-- Show text only on larger screens -->
+                        <span><a href="adminDashboard.html">Home</a></span>
+                    </li>
+                    <!-- Repeat the pattern for other items -->
+                    <li class="px-4 py-2 flex items-center">
+                        <i class="fas fa-map mr-2"></i>
+                        <span><a href="Map.html">Map</a></span>
+                    </li>
+                    <li class="px-4 py-2 flex items-center">
+                        <i class="fas fa-tachometer-alt mr-2"></i>
+                        <span><a href="gauge.html">Gauge</a></span>
+                    </li>
+                    <li class="px-4 py-2 flex items-center">
+                        <i class="fas fa-plus mr-2"></i>
+                        <span><a href="add.html">Add</a></span>
+                    </li>
+                    <li class="px-4 py-2 flex items-center">
+                        <i class="fas fa-truck mr-2"></i>
+                        <span><a href="path.html">Path</a></span>
+                    </li>
+                    <li class="px-4 py-2 flex items-center">
+                        <i class="fas fa-comment-alt mr-2"></i>
+
+                        <span><a href="feedback.html">Advice</a></span>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-grow p-4 lg:p-8">
+            <div class="max-w-6xl mx-auto">
+                <!-- Dashboard Header -->
+                <h1 class="text-3xl font-semibold text-gray-800 mb-4">Smart Green House</h1>
+                <!-- Line Chart -->
+                <div class="bg-white rounded-lg shadow p-4 lg:p-6 mb-4 lg:mb-8">
+                    <canvas id="lineChart" width="400" height="200"></canvas>
+                </div>
+                <!-- Pie Chart and Waste Amount Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <!-- Pie Chart -->
+                    <div class="bg-white rounded-lg shadow p-4 lg:p-6">
+                        <canvas id="pieChart" width="400" height="200"></canvas>
+                    </div>
+                    <!-- Waste Amount Section -->
+                    <div class="bg-white rounded-lg shadow p-4 lg:p-6">
+                        <h2 class="text-lg font-semibold mb-2">Waste Amounts (kg)</h2>
+                        <ul class="divide-y divide-gray-300">
+                            <li class="py-2">
+                                <span class="text-gray-600">Degradable Waste:</span>
+                                <span id="degradableAmount" class="text-blue-600 ml-2">0 kg</span>
+                            </li>
+                            <li class="py-2">
+                                <span class="text-gray-600">Non-Degradable Waste:</span>
+                                <span id="nonDegradableAmount" class="text-red-600 ml-2">0 kg</span>
+                            </li>
+                            <li class="py-2">
+                                <span class="text-gray-600">Others:</span>
+                                <span id="othersAmount" class="text-green-600 ml-2">0 kg</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Wait for the DOM content to be fully loaded
+        document.addEventListener("DOMContentLoaded", function () {
+            // Hamburger menu icon
+            const toggleSidebarButton = document.getElementById("toggleSidebar");
+            // Sidebar navigation
+            const sidebarNav = document.querySelector("aside nav");
+
+            // Function to toggle sidebar visibility
+            function toggleSidebar() {
+                sidebarNav.classList.toggle("hidden");
+            }
+
+            // Toggle sidebar when hamburger icon is clicked
+            toggleSidebarButton.addEventListener("click", toggleSidebar);
+
+            // Data for the line chart
+            const lineChartData = {
+                labels: ["January", "February", "March", "April", "May", "June"],
+                datasets: [
+                    {
+                        label: "Degradable Waste",
+                        data: [50, 60, 70, 65, 55, 60],
+                        borderColor: "rgb(14, 172, 122)",
+                        borderWidth: 2,
+                        fill: false,
+                    },
+                    {
+                        label: "Non-Degradable Waste",
+                        data: [40, 50, 45, 55, 60, 70],
+                        borderColor: "rgb(1, 88, 160)",
+                        borderWidth: 2,
+                        fill: false,
+                    },
+                    {
+                        label: "Others",
+                        data: [30, 35, 40, 45, 50, 55],
+                        borderColor: "rgb(75, 192, 192)",
+                        borderWidth: 2,
+                        fill: false,
+                    },
+                ],
+            };
+
+            // Options for the line chart
+            const lineChartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: "Month",
+                        },
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: "Amount",
+                        },
+                    },
+                },
+            };
+
+            // Initialize the line chart
+            const lineChart = new Chart(document.getElementById("lineChart"), {
+                type: "line",
+                data: lineChartData,
+                options: lineChartOptions,
+            });
+
+            // Data for the pie chart
+            const pieChartData = {
+                labels: ["Degradable Waste", "Non-Degradable Waste", "Others"],
+                datasets: [
+                    {
+                        label: "Waste Composition",
+                        data: [60, 70, 55],
+                        backgroundColor: [
+                            "rgb(14, 172, 122)",
+                            "rgb(1, 88, 160)",
+                            "rgb(75, 192, 192)",
+                        ],
+                        borderWidth: 0,
+                    },
+                ],
+            };
+
+            // Options for the pie chart
+            const pieChartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+            };
+
+            // Initialize the pie chart
+            const pieChart = new Chart(document.getElementById("pieChart"), {
+                type: "pie",
+                data: pieChartData,
+                options: pieChartOptions,
+            });
+
+            // Calculate and display waste amounts
+            const degradableAmount = lineChartData.datasets[0].data.reduce(
+                (a, b) => a + b,
+                0
+            );
+            const nonDegradableAmount = lineChartData.datasets[1].data.reduce(
+                (a, b) => a + b,
+                0
+            );
+            const othersAmount = lineChartData.datasets[2].data.reduce(
+                (a, b) => a + b,
+                0
+            );
+
+            document.getElementById("degradableAmount").textContent =
+                degradableAmount + " kg";
+            document.getElementById("nonDegradableAmount").textContent =
+                nonDegradableAmount + " kg";
+            document.getElementById("othersAmount").textContent =
+                othersAmount + " kg";
+        });
+    </script>
+</body>
+
+</html>
