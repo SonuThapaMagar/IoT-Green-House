@@ -120,6 +120,7 @@ void loop() {
             if (isnan(h) || isnan(t)) {
               response += "<p>Failed to read from DHT sensor!</p>";
             } else {
+              float t = dht.readTemperature();
               response += "<p>Humidity: " + String(h) + " %</p>";
               response += "<p>Temperature: " + String(t) + " °C</p>";
               response += "<p>Air Quality (MQ135): " + String(airQuality) + " (raw value)</p>";
@@ -131,27 +132,33 @@ void loop() {
               }
 
               response += "<p>Soil Moisture: " + String(soilMoisture) + "</p>";
-
+            
               // Control the fans based on temperature
               if (t > 30) {
                 digitalWrite(FAN1PIN, HIGH); // Turn on fan 1
-                digitalWrite(FAN2PIN, HIGH); // Turn on fan 2
+                digitalWrite(FAN2PIN, HIGH);// Turn on fan 2
+                
                 response += "<p>Fans are ON.</p>";
               } else if (t < 28) {
                 digitalWrite(FAN1PIN, LOW);  // Turn off fan 1
-                digitalWrite(FAN2PIN, LOW);  // Turn off fan 2
+                digitalWrite(FAN2PIN, LOW);
+                 // Turn off fan 2
                 response += "<p>Fans are OFF.</p>";
               } else {
                 response += "<p>Fans are in standby mode.</p>";
               }
 
               // If soil is dry, activate relay
-              if (soilMoisture < 3000) {  // Adjust the threshold as needed
+              if (soilMoisture > 3000) {  // Adjust the threshold as needed
                 digitalWrite(RELAYPIN, HIGH); // Turn relay on
                 response += "<p>Soil is dry! Relay activated.</p>";
-              } else {
-                digitalWrite(RELAYPIN, LOW); // Turn relay off
+              } else if(soilMoisture < 2600) {
+                digitalWrite(RELAYPIN, LOW);
+                 // Turn relay off
                 response += "<p>Soil is moist. Relay deactivated.</p>";
+              }
+              else{
+                response += "<p>relay is in standby mode.</p>";
               }
             }
 
