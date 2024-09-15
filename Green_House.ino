@@ -2,10 +2,13 @@
 #include <DHT.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <ESP32Servo.h>  // Include the ESP32Servo library
 
 // Replace with your network credentials
 const char* ssid = "Virinchi College";
 const char* password = "virinchi@2024";
+
+Servo esc;
 
 // DHT Sensor setup
 #define DHTPIN 4          // DHT sensor pin
@@ -22,6 +25,10 @@ DHT dht(DHTPIN, DHTTYPE);
 // Fan setup
 #define FAN1PIN 12         // Fan 1 control pin
 #define FAN2PIN 13         // Fan 2 control pin
+
+// Bulb setup
+#define BULBPIN 14         // Bulb control pin
+bool bulbState = LOW;      // Initial state of the bulb (off)
 
 // Constants for MQ135 CO2 Calculation
 float R0 = 76.63;        // Replace with your calibrated R0 value
@@ -49,6 +56,7 @@ float convertPPMtoPercentage(float ppm) {
 }
 
 void setup() {
+  
   Serial.begin(115200);
 
   // Set the attenuation for analog input (for ESP32)
@@ -61,14 +69,27 @@ void setup() {
   pinMode(RELAYPIN, OUTPUT);
   pinMode(FAN1PIN, OUTPUT);
   pinMode(FAN2PIN, OUTPUT);
-  digitalWrite(RELAYPIN, LOW); // Turn relay off initially
+  pinMode(BULBPIN, OUTPUT);
+  // digitalWrite(RELAYPIN, LOW); // Turn relay off initially
   digitalWrite(FAN1PIN, LOW);  // Turn fan 1 off initially
   digitalWrite(FAN2PIN, LOW);  // Turn fan 2 off initially
+  digitalWrite(BULBPIN, LOW);  // Turn bulb off initially
 
   // Initialize LCD with the specified I2C pins
   Wire.begin(21, 22);   // SDA = GPIO 21, SCL = GPIO 22
   lcd.begin(20, 4);     // Specify the number of columns and rows
   lcd.backlight();      // Turn on the backlight
+
+
+   // Attach the ESC to the motor pin with min and max pulse widths
+  esc.attach(RELAYPIN, 1000, 2000);
+
+ 
+
+  // Send the minimum throttle signal to initialize the ESC
+  esc.write(0);  // Corresponds to 1000 microseconds (minimum throttle)
+  Serial.println("ESC initialization: sending minimum throttle");
+  delay(1000);  // Wait for 1 second
 
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
@@ -89,6 +110,8 @@ void setup() {
 }
 
 void loop() {
+   float t = dht.readTemperature();
+   int soilMoisture = analogRead(SOILMOISTUREPIN);
   WiFiClient client = server.available(); // Check for incoming clients
 
   if (client) {
@@ -100,68 +123,76 @@ void loop() {
         char c = client.read();
         if (c == '\n') {
           // If the current line is blank, the HTTP request has ended
-          if (currentLine.length() == 0) {
-            // Send the response
-            String response = "<!DOCTYPE html><html>";
-            response += "<head><title>Greenhouse Monitor</title></head>";
-            response += "<body><h1>Greenhouse Monitor</h1>";
-
-            // Read DHT sensor values
+           // Read DHT sensor values
             float h = dht.readHumidity();
             float t = dht.readTemperature();
             int airQuality = analogRead(MQ135PIN);
             int soilMoisture = analogRead(SOILMOISTUREPIN);
-
             // Calculate CO2 concentration
             float CO2_ppm = getCO2Concentration(airQuality);
             float CO2_percentage = convertPPMtoPercentage(CO2_ppm);
+          if (currentLine.length() == 0) {
+            // Send the response
+            String response = "<!DOCTYPE html><html lang=\"en\">";
+            response += "<head>";
+            response += "<meta charset=\"UTF-8\">";
+            response += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">";
+            response += "<meta http-equiv=\"refresh\" content=\"3\">"; // Auto-reload every 3 seconds
+            response += "<title>Greenhouse Monitor</title>";
+            response += "<style>";
+            response += "body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }";
+            response += "h1 { text-align: center; color: #4CAF50; }";
+            response += ".container { max-width: 600px; margin: 20px auto; padding: 20px; background-color: #fff; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }";
+            response += ".sensor-data { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #ddd; }";
+            response += ".sensor-data:last-child { border-bottom: none; }";
+            response += ".sensor-data h2 { margin: 0; color: #333; font-size: 18px; }";
+            response += ".sensor-data p { margin: 0; color: #555; font-size: 16px; }";
+            response += ".status { font-weight: bold; color: #FF5722; }";
+            response += "</style>";
+            response += "</head>";
+            response += "<body>";
+            response += "<h1>Greenhouse Monitor</h1>";
+            response += "<div class=\"container\">";
+
+           
+
+            
 
             // Check if any reads failed and exit early (to try again).
             if (isnan(h) || isnan(t)) {
-              response += "<p>Failed to read from DHT sensor!</p>";
+              response += "<div class=\"sensor-data\"><h2>Sensor Error:</h2><p>Failed to read from DHT sensor!</p></div>";
             } else {
-              float t = dht.readTemperature();
-              response += "<p>Humidity: " + String(h) + " %</p>";
-              response += "<p>Temperature: " + String(t) + " °C</p>";
-              response += "<p>Air Quality (MQ135): " + String(airQuality) + " (raw value)</p>";
+              response += "<div class=\"sensor-data\"><h2>Humidity:</h2><p>" + String(h) + " %</p></div>";
+              response += "<div class=\"sensor-data\"><h2>Temperature:</h2><p>" + String(t) + " °C</p></div>";
+              response += "<div class=\"sensor-data\"><h2>Air Quality (MQ135):</h2><p>" + String(airQuality) + " (raw value)</p></div>";
               if (isnan(CO2_ppm)) {
-                response += "<p>CO2: Failed to read CO2 concentration!</p>";
+                response += "<div class=\"sensor-data\"><h2>CO2:</h2><p>Failed to read CO2 concentration!</p></div>";
               } else {
-                response += "<p>CO2 Concentration: " + String(CO2_ppm) + " ppm</p>";
-                response += "<p>CO2 Percentage: " + String((CO2_percentage * 100.0) / 2) + " %</p>"; // Display CO2 percentage
+                response += "<div class=\"sensor-data\"><h2>CO2 Concentration:</h2><p>" + String(CO2_ppm) + " ppm</p></div>";
+                response += "<div class=\"sensor-data\"><h2>CO2 Percentage:</h2><p>" + String((CO2_percentage * 100.0) / 2) + " %</p></div>";
               }
 
-              response += "<p>Soil Moisture: " + String(soilMoisture) + "</p>";
-            
+              response += "<div class=\"sensor-data\"><h2>Soil Moisture:</h2><p>" + String(soilMoisture) + "</p></div>";
+
+              
+
               // Control the fans based on temperature
-              if (t > 30) {
+              if (t > 31) {
                 digitalWrite(FAN1PIN, HIGH); // Turn on fan 1
-                digitalWrite(FAN2PIN, HIGH);// Turn on fan 2
-                
-                response += "<p>Fans are ON.</p>";
-              } else if (t < 28) {
-                digitalWrite(FAN1PIN, LOW);  // Turn off fan 1
-                digitalWrite(FAN2PIN, LOW);
-                 // Turn off fan 2
-                response += "<p>Fans are OFF.</p>";
+                digitalWrite(FAN2PIN, HIGH); // Turn on fan 2
+                response += "<div class=\"sensor-data\"><h2>Fans:</h2><p class=\"status\">ON</p></div>";
               } else {
-                response += "<p>Fans are in standby mode.</p>";
+                digitalWrite(FAN1PIN, LOW);  // Turn off fan 1
+                digitalWrite(FAN2PIN, LOW);  // Turn off fan 2
+                response += "<div class=\"sensor-data\"><h2>Fans:</h2><p class=\"status\">OFF</p></div>";
               }
 
-              // If soil is dry, activate relay
-              if (soilMoisture > 3000) {  // Adjust the threshold as needed
-                digitalWrite(RELAYPIN, HIGH); // Turn relay on
-                response += "<p>Soil is dry! Relay activated.</p>";
-              } else if(soilMoisture < 2600) {
-                digitalWrite(RELAYPIN, LOW);
-                 // Turn relay off
-                response += "<p>Soil is moist. Relay deactivated.</p>";
-              }
-              else{
-                response += "<p>relay is in standby mode.</p>";
-              }
+              
             }
 
+           
+
+            response += "</div>";
             response += "</body></html>";
             client.println("HTTP/1.1 200 OK");
             client.println("Content-Type: text/html");
@@ -182,7 +213,33 @@ void loop() {
     client.stop();
     Serial.println("Client disconnected");
   }
+// Control the fans based on temperature
+              if (t > 32) {
+                digitalWrite(FAN1PIN, HIGH); // Turn on fan 1
+                digitalWrite(FAN2PIN, HIGH); // Turn on fan 2
+               
+              } else {
+                digitalWrite(FAN1PIN, LOW);  // Turn off fan 1
+                digitalWrite(FAN2PIN, LOW);  // Turn off fan 2
+              
+              }
 
+               if (t < 30 ) {
+                digitalWrite(BULBPIN, HIGH); // Turn on fan 1
+                 // Turn on fan 2
+               
+              } else {
+                digitalWrite(BULBPIN, LOW);  // Turn off fan 1
+                 // Turn off fan 2
+              
+              }
+              if (soilMoisture > 3000) {
+     esc.write(100);  // Corresponds to 2000 microseconds (maximum throttle)
+    
+  } else {
+    esc.write(0);  // Corresponds to 2000 microseconds (maximum throttle)
+   
+  } 
   // Update LCD with temperature, humidity, CO2 concentration, and soil moisture
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -194,30 +251,27 @@ void loop() {
   lcd.print("Humidity: ");
   lcd.print(dht.readHumidity());
   lcd.print(" %");
+  float R = dht.readTemperature();
 
   lcd.setCursor(0, 2);
   lcd.print("CO2: ");
   int airQuality = analogRead(MQ135PIN);
   float CO2_ppm = getCO2Concentration(airQuality);
-  lcd.print(CO2_ppm/1000);
+  lcd.print(CO2_ppm / 1000);
   lcd.print(" %");
 
   lcd.setCursor(0, 3);
   lcd.print("Soil Moist: ");
-  int soilMoisture = analogRead(SOILMOISTUREPIN);
-  if(soilMoisture>3000)
-  {
-   lcd.print("Dry"); 
+  analogRead(SOILMOISTUREPIN);
+   if (soilMoisture > 3000) {
+      // Corresponds to 2000 microseconds (maximum throttle)
+    lcd.print("Dry");
+  } else {
+     // Corresponds to 2000 microseconds (maximum throttle)
+    lcd.print("Moist");
   }
-  else if (soilMoisture<3000) 
-  {
-
-  lcd.print("Moist");
-  }
-  else{
-    lcd.print("sensor connect gar");
-  }
-  
+    
 
   delay(2000); // Update display every 2 seconds
 }
+
