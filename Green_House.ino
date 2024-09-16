@@ -54,6 +54,10 @@ float getCO2Concentration(int sensorValue) {
 float convertPPMtoPercentage(float ppm) {
   return ppm / 10000.0;  // Convert ppm to percentage
 }
+float getAirQualityPercentage(int sensorValue) {
+  int maxValue = 4095; // Maximum value for ESP32 analog input
+  return (sensorValue / (float)maxValue) * 100.0; // Convert raw value to percentage
+}
 
 void setup() {
   
@@ -70,7 +74,7 @@ void setup() {
   pinMode(FAN1PIN, OUTPUT);
   pinMode(FAN2PIN, OUTPUT);
   pinMode(BULBPIN, OUTPUT);
-  // digitalWrite(RELAYPIN, LOW); // Turn relay off initially
+  digitalWrite(RELAYPIN, LOW); // Turn relay off initially
   digitalWrite(FAN1PIN, LOW);  // Turn fan 1 off initially
   digitalWrite(FAN2PIN, LOW);  // Turn fan 2 off initially
   digitalWrite(BULBPIN, LOW);  // Turn bulb off initially
@@ -82,12 +86,12 @@ void setup() {
 
 
    // Attach the ESC to the motor pin with min and max pulse widths
-  esc.attach(RELAYPIN, 1000, 2000);
+  // esc.attach(RELAYPIN, 1000, 2000);
 
  
 
   // Send the minimum throttle signal to initialize the ESC
-  esc.write(0);  // Corresponds to 1000 microseconds (minimum throttle)
+  // esc.write(0);  // Corresponds to 1000 microseconds (minimum throttle)
   Serial.println("ESC initialization: sending minimum throttle");
   delay(1000);  // Wait for 1 second
 
@@ -112,7 +116,36 @@ void setup() {
 void loop() {
    float t = dht.readTemperature();
    int soilMoisture = analogRead(SOILMOISTUREPIN);
+
+   // Control the fans based on temperature
+              if (t > 32) {
+                digitalWrite(FAN1PIN, HIGH); // Turn on fan 1
+                digitalWrite(FAN2PIN, HIGH); // Turn on fan 2
+               
+              } else {
+                digitalWrite(FAN1PIN, LOW);  // Turn off fan 1
+                digitalWrite(FAN2PIN, LOW);  // Turn off fan 2
+              
+              }
+
+               if (t < 30 ) {
+                digitalWrite(BULBPIN, HIGH); // Turn on fan 1
+                 // Turn on fan 2
+               
+              } else {
+                digitalWrite(BULBPIN, LOW);  // Turn off fan 1
+                 // Turn off fan 2
+              
+              }
+              if (soilMoisture > 2900) {
+       digitalWrite(RELAYPIN, HIGH); // Corresponds to 2000 microseconds (maximum throttle)
+    
+  } else {
+      digitalWrite(RELAYPIN, LOW);  // Corresponds to 2000 microseconds (maximum throttle)
+   
+  } 
   WiFiClient client = server.available(); // Check for incoming clients
+
 
   if (client) {
     String currentLine = "";
@@ -178,12 +211,12 @@ void loop() {
 
               // Control the fans based on temperature
               if (t > 31) {
-                digitalWrite(FAN1PIN, HIGH); // Turn on fan 1
-                digitalWrite(FAN2PIN, HIGH); // Turn on fan 2
+                // digitalWrite(FAN1PIN, HIGH); // Turn on fan 1
+                // digitalWrite(FAN2PIN, HIGH); // Turn on fan 2
                 response += "<div class=\"sensor-data\"><h2>Fans:</h2><p class=\"status\">ON</p></div>";
               } else {
-                digitalWrite(FAN1PIN, LOW);  // Turn off fan 1
-                digitalWrite(FAN2PIN, LOW);  // Turn off fan 2
+                // digitalWrite(FAN1PIN, LOW);  // Turn off fan 1
+                // digitalWrite(FAN2PIN, LOW);  // Turn off fan 2
                 response += "<div class=\"sensor-data\"><h2>Fans:</h2><p class=\"status\">OFF</p></div>";
               }
 
@@ -233,44 +266,43 @@ void loop() {
                  // Turn off fan 2
               
               }
-              if (soilMoisture > 3000) {
-     esc.write(100);  // Corresponds to 2000 microseconds (maximum throttle)
+  //             if (soilMoisture > 3100) {
+  //    esc.write(100);  // Corresponds to 2000 microseconds (maximum throttle)
     
-  } else {
-    esc.write(0);  // Corresponds to 2000 microseconds (maximum throttle)
+  // } else {
+  //   esc.write(0);  // Corresponds to 2000 microseconds (maximum throttle)
    
-  } 
+  // } 
   // Update LCD with temperature, humidity, CO2 concentration, and soil moisture
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Temp: ");
   lcd.print(dht.readTemperature());
   lcd.print(" C");
-
+ 
   lcd.setCursor(0, 1);
-  lcd.print("Humidity: ");
+  lcd.print("humidity: ");
   lcd.print(dht.readHumidity());
   lcd.print(" %");
   float R = dht.readTemperature();
 
-  lcd.setCursor(0, 2);
-  lcd.print("CO2: ");
-  int airQuality = analogRead(MQ135PIN);
-  float CO2_ppm = getCO2Concentration(airQuality);
-  lcd.print(CO2_ppm / 1000);
-  lcd.print(" %");
+   lcd.setCursor(0, 2);
+  lcd.print("Air Qual: ");
+  lcd.print(getAirQualityPercentage(analogRead(MQ135PIN)));
+  lcd.print("%");
+  
 
   lcd.setCursor(0, 3);
   lcd.print("Soil Moist: ");
-  analogRead(SOILMOISTUREPIN);
-   if (soilMoisture > 3000) {
+  int soil = analogRead(SOILMOISTUREPIN);
+   if (soilMoisture > 2900) {
       // Corresponds to 2000 microseconds (maximum throttle)
     lcd.print("Dry");
   } else {
      // Corresponds to 2000 microseconds (maximum throttle)
     lcd.print("Moist");
   }
-    
+    Serial.println(soil);
 
   delay(2000); // Update display every 2 seconds
 }
